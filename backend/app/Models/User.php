@@ -1,22 +1,35 @@
 <?php
-
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Attributes\Fillable;//Defines which fields can be  saved to database Protects against hackers
-use Illuminate\Database\Eloquent\Attributes\Hidden;//Hides fields from API response
-use Illuminate\Foundation\Auth\User as Authenticatable;//Enable login features
-use Laravel\Sanctum\HasApiTokens; //Create login tokens
-#[Fillable(['name', 'email', 'password'])]
-#[Hidden(['password', 'remember_token'])]
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
+use Spatie\Permission\Traits\HasRoles;
+
 class User extends Authenticatable
 {
-    use HasApiTokens; // add HasApiTokens here
+    use HasApiTokens, HasFactory, Notifiable, HasRoles;
 
-    protected function casts(): array//automatic conversion
+    protected $fillable = [
+        'name',
+        'email',
+        'password',
+        'role',         // needed for admin/cashier role
+        'is_active',
+    ];
+
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+    protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
-            'password' => 'hashed',
+            'password'          => 'hashed',
+            'is_active'         => 'boolean',
         ];
     }
 }
