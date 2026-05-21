@@ -1,71 +1,46 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:admin_web/data/models/category.dart';
+import 'package:admin_web/data/models/order.dart';
+import 'package:admin_web/data/models/product.dart';
+import 'package:admin_web/data/models/user.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'api_exception.dart';
+
+import 'auth_service.dart';
 
 class ApiService {
   static const String baseUrl = 'http://localhost:8000/api/v1';
-  static const _storage = FlutterSecureStorage();
 
-  static Future<Map<String, String>> get _headers async {
-    final token = await _storage.read(key: 'admin_token');
-    return {
-      'Authorization': 'Bearer $token',
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-    };
-  }
+  /// -------------------------
+  /// Products
+  /// -------------------------
+  static Future<List<Product>> getProducts({String? search}) async {
+    final params = <String, String>{};
+    if (search != null && search.isNotEmpty) params['search'] = search;
 
-  static Future<void> login(String email, String password) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/auth/login'),
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({'email': email, 'password': password}),
+    final uri = Uri.parse(
+      '$baseUrl/admin/products',
+    ).replace(queryParameters: params);
+    final response = await http.get(
+      uri,
+      headers: await AuthService.getHeaders(),
     );
 
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body);
-      await _storage.write(key: 'admin_token', value: json['token']);
-    } else {
-      final json = jsonDecode(response.body);
-      throw Exception(json['message'] ?? 'Login failed');
+      final data = json['data'] as List<dynamic>;
+      return data.map((e) => Product.fromJson(e)).toList();
     }
+
+    final body = jsonDecode(response.body);
+    throw ApiException(
+      body['message'] ?? 'Failed to load products',
+      statusCode: response.statusCode,
+    );
   }
 
-  static Future<void> logout() async {
-    await _storage.delete(key: 'admin_token');
-  }
-
-  static Future<bool> isLoggedIn() async {
-    final token = await _storage.read(key: 'admin_token');
-    return token != null;
-  }
-
-  static Future<List<dynamic>> getProducts({String? search}) async {
-    final params = <String, String>{};
-    if (search != null && search.isNotEmpty) params['search'] = search;
-
-    final uri = Uri.parse('$baseUrl/admin/products').replace(queryParameters: params);
-    final response = await http.get(uri, headers: await _headers);
-
-    print('Products Response Status: ${response.statusCode}');
-    
-    if (response.statusCode == 200) {
-      final json = jsonDecode(response.body);
-      print('Products Response: $json');
-      // Your API returns { "data": [...] }
-      if (json.containsKey('data')) {
-        return json['data'];
-      }
-      return json;
-    }
-    throw Exception('Failed to load products: ${response.statusCode}');
-  }
-
-  static Future<void> createProduct({
+  static Future<Product> createProduct({
     required String name,
     required String description,
     required int categoryId,
@@ -74,8 +49,11 @@ class ApiService {
     Uint8List? imageBytes,
     String? imageName,
   }) async {
-    final token = await _storage.read(key: 'admin_token');
-    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/products'));
+    final token = await AuthService.getToken();
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/admin/products'),
+    );
     request.headers['Authorization'] = 'Bearer $token';
     request.headers['Accept'] = 'application/json';
 
@@ -87,19 +65,25 @@ class ApiService {
     request.fields['is_active'] = '1';
 
     if (imageBytes != null && imageName != null) {
-      request.files.add(http.MultipartFile.fromBytes('image', imageBytes, filename: imageName));
+      request.files.add(
+        http.MultipartFile.fromBytes('image', imageBytes, filename: imageName),
+      );
     }
 
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
+    final response = await http.Response.fromStream(await request.send());
+    final body = jsonDecode(response.body);
 
-    if (response.statusCode != 201) {
-      final json = jsonDecode(response.body);
-      throw Exception(json['message'] ?? 'Failed to create product');
+    if (response.statusCode == 201) {
+      return Product.fromJson(body['data']);
     }
+
+    throw ApiException(
+      body['message'] ?? 'Failed to create product',
+      statusCode: response.statusCode,
+    );
   }
 
-  static Future<void> updateProduct({
+  static Future<Product> updateProduct({
     required int id,
     required String name,
     required String description,
@@ -109,8 +93,11 @@ class ApiService {
     Uint8List? imageBytes,
     String? imageName,
   }) async {
-    final token = await _storage.read(key: 'admin_token');
-    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/products/$id'));
+    final token = await AuthService.getToken();
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/admin/products/$id'),
+    );
     request.headers['Authorization'] = 'Bearer $token';
     request.headers['Accept'] = 'application/json';
 
@@ -123,124 +110,198 @@ class ApiService {
     request.fields['_method'] = 'PUT';
 
     if (imageBytes != null && imageName != null) {
-      request.files.add(http.MultipartFile.fromBytes('image', imageBytes, filename: imageName));
+      request.files.add(
+        http.MultipartFile.fromBytes('image', imageBytes, filename: imageName),
+      );
     }
 
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
+    final response = await http.Response.fromStream(await request.send());
+    final body = jsonDecode(response.body);
 
-    if (response.statusCode != 200) {
-      final json = jsonDecode(response.body);
-      throw Exception(json['message'] ?? 'Failed to update product');
+    if (response.statusCode == 200) {
+      return Product.fromJson(body['data']);
     }
+
+    throw ApiException(
+      body['message'] ?? 'Failed to update product',
+      statusCode: response.statusCode,
+    );
   }
 
   static Future<void> deleteProduct(int id) async {
     final response = await http.delete(
       Uri.parse('$baseUrl/admin/products/$id'),
-      headers: await _headers,
+      headers: await AuthService.getHeaders(),
     );
+
     if (response.statusCode != 200) {
-      throw Exception('Failed to delete product');
+      final body = jsonDecode(response.body);
+      throw ApiException(
+        body['message'] ?? 'Failed to delete product',
+        statusCode: response.statusCode,
+      );
     }
   }
 
-  static Future<List<dynamic>> getCategories() async {
+  /// -------------------------
+  /// Categories
+  /// -------------------------
+  static Future<List<Category>> getCategories() async {
     final response = await http.get(
       Uri.parse('$baseUrl/admin/categories'),
-      headers: await _headers,
+      headers: await AuthService.getHeaders(),
     );
-    
-    print('Categories Response Status: ${response.statusCode}');
-    
+
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body);
-      print('Categories Response: $json');
-      // Your API returns { "data": [...] }
-      if (json.containsKey('data')) {
-        return json['data'];
-      }
-      return json;
+      final data = json['data'] as List<dynamic>;
+      return data.map((e) => Category.fromJson(e)).toList();
     }
     throw Exception('Failed to load categories: ${response.statusCode}');
   }
 
-  static Future<void> createCategory(String name, {String? color}) async {
+  static Future<Category> createCategory(String name, {String? color}) async {
     final response = await http.post(
       Uri.parse('$baseUrl/admin/categories'),
-      headers: await _headers,
+      headers: await AuthService.getHeaders(),
       body: jsonEncode({'name': name, 'color': color ?? '#FF6B00'}),
     );
-    if (response.statusCode != 201) {
+    if (response.statusCode == 201) {
       final json = jsonDecode(response.body);
-      throw Exception(json['message'] ?? 'Failed to create category');
+      return Category.fromJson(json['data']);
     }
+    throw Exception(
+      jsonDecode(response.body)['message'] ?? 'Failed to create category',
+    );
   }
 
-  static Future<void> updateCategory(int id, String name, {String? color}) async {
+  static Future<Category> updateCategory(
+    int id,
+    String name, {
+    String? color,
+  }) async {
     final response = await http.put(
       Uri.parse('$baseUrl/admin/categories/$id'),
-      headers: await _headers,
+      headers: await AuthService.getHeaders(),
       body: jsonEncode({'name': name, 'color': color ?? '#FF6B00'}),
     );
-    if (response.statusCode != 200) {
+    if (response.statusCode == 200) {
       final json = jsonDecode(response.body);
-      throw Exception(json['message'] ?? 'Failed to update category');
+      return Category.fromJson(json['data']);
     }
+    throw Exception(
+      jsonDecode(response.body)['message'] ?? 'Failed to update category',
+    );
   }
 
   static Future<void> deleteCategory(int id) async {
     final response = await http.delete(
       Uri.parse('$baseUrl/admin/categories/$id'),
-      headers: await _headers,
+      headers: await AuthService.getHeaders(),
     );
     if (response.statusCode != 200) {
-      final json = jsonDecode(response.body);
-      throw Exception(json['message'] ?? 'Failed to delete category');
+      throw Exception(
+        jsonDecode(response.body)['message'] ?? 'Failed to delete category',
+      );
     }
   }
 
-  static Future<Map<String, dynamic>> getOrders({int page = 1, String? search}) async {
+  /// -------------------------
+  /// Orders
+  /// -------------------------
+  /// GET /api/v1/admin/orders/{id}
+  /// Returns full order with items and cashier info
+  static Future<Order> getOrderById(int id) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/admin/orders/$id'),
+      headers: await AuthService.getHeaders(),
+    );
+ 
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body);
+      return Order.fromJson(json['data']);
+    }
+ 
+    final body = jsonDecode(response.body);
+    throw ApiException(
+      body['message'] ?? 'Failed to load order',
+      statusCode: response.statusCode,
+    );
+  }
+ 
+// ──  getOrders  ────────────────────────────
+ 
+  static Future<List<Order>> getOrders({
+    int page = 1,
+    String? search,
+    String? status,
+  }) async {
     final params = <String, String>{'page': page.toString()};
     if (search != null && search.isNotEmpty) params['search'] = search;
-
-    final uri = Uri.parse('$baseUrl/admin/orders').replace(queryParameters: params);
-    final response = await http.get(uri, headers: await _headers);
-
+    if (status != null && status.isNotEmpty) params['status'] = status;
+ 
+    final uri = Uri.parse('$baseUrl/admin/orders')
+        .replace(queryParameters: params);
+ 
+    final response = await http.get(
+      uri,
+      headers: await AuthService.getHeaders(),
+    );
+ 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      final json = jsonDecode(response.body);
+      final data = json['data'] as List<dynamic>;
+      return data.map((e) => Order.fromJson(e)).toList();
     }
-    throw Exception('Failed to load orders');
+ 
+    throw ApiException(
+      'Failed to load orders',
+      statusCode: response.statusCode,
+    );
   }
 
-  static Future<List<dynamic>> getUsers() async {
+  /// -------------------------
+  /// Users
+  /// -------------------------
+  static Future<List<User>> getUsers() async {
     final response = await http.get(
       Uri.parse('$baseUrl/admin/users'),
-      headers: await _headers,
+      headers: await AuthService.getHeaders(),
     );
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body);
-      return json['data'];
+      final data = json['data'] as List<dynamic>;
+      return data.map((e) => User.fromJson(e)).toList();
     }
     throw Exception('Failed to load users');
   }
 
-  static Future<void> createUser({required String name, required String email, required String password}) async {
+  static Future<User> createUser({
+    required String name,
+    required String email,
+    required String password,
+  }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/admin/users'),
-      headers: await _headers,
+      headers: await AuthService.getHeaders(),
       body: jsonEncode({'name': name, 'email': email, 'password': password}),
     );
-    if (response.statusCode != 201) {
+    if (response.statusCode == 201) {
       final json = jsonDecode(response.body);
-      throw Exception(json['message'] ?? 'Failed to create user');
+      return User.fromJson(json['data']);
     }
+    throw Exception(
+      jsonDecode(response.body)['message'] ?? 'Failed to create user',
+    );
   }
 
+  /// -------------------------
+  /// Dashboard
+  /// -------------------------
   static Future<Map<String, dynamic>> getDashboard() async {
     final response = await http.get(
       Uri.parse('$baseUrl/admin/dashboard'),
-      headers: await _headers,
+      headers: await AuthService.getHeaders(),
     );
     if (response.statusCode == 200) {
       return jsonDecode(response.body);

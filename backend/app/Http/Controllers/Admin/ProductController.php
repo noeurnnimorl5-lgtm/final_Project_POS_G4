@@ -8,11 +8,31 @@ use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Services\CloudinaryService;
 
 class ProductController extends Controller
 {
+    /**
+     * Generate a unique slug for product name.
+     */
+    private function generateUniqueSlug(string $name, ?int $id = null): string
+    {
+        $slug = Str::slug($name);
+        $originalSlug = $slug;
+        $count = 1;
+
+        while (
+            Product::where('slug', $slug)
+                   ->when($id, fn($q) => $q->where('id', '!=', $id))
+                   ->exists()
+        ) {
+            $slug = $originalSlug . '-' . $count++;
+        }
+
+        return $slug;
+    }
+
     public function index(Request $request): AnonymousResourceCollection
     {
         $products = Product::query()
@@ -35,21 +55,25 @@ class ProductController extends Controller
             'price'       => ['required', 'numeric', 'min:0'],
             'stock'       => ['required', 'integer', 'min:0'],
             'image'       => ['nullable', 'image', 'max:2048'],
-            'is_active'   => ['boolean'],
+            'is_active'   => ['nullable'],
         ]);
 
         if ($request->hasFile('image')) {
-            $validated['image_path'] = $request->file('image')
-                ->store('products', 'public');
+            $cloudinary = new CloudinaryService();
+            $result = $cloudinary->upload($request->file('image')->getRealPath());
+
+            $validated['image_url'] = $result['secure_url'];
+            $validated['image_public_id'] = $result['public_id'];
         }
 
-        $validated['slug'] = Str::slug($validated['name']);
+        $validated['slug'] = $this->generateUniqueSlug($validated['name']);
+        $validated['is_active'] = true;
         unset($validated['image']);
 
         $product = Product::create($validated);
 
         return response()->json([
-            'message' => 'Product created.',
+            'message' => 'Product created successfully.',
             'data'    => new ProductResource($product->load('category')),
         ], 201);
     }
@@ -75,29 +99,42 @@ class ProductController extends Controller
         ]);
 
         if ($request->hasFile('image')) {
-            if ($product->image_path) {
-                Storage::disk('public')->delete($product->image_path);
+            $cloudinary = new CloudinaryService();
+
+            if ($product->image_public_id) {
+                $cloudinary->delete($product->image_public_id);
             }
-            $validated['image_path'] = $request->file('image')
-                ->store('products', 'public');
+
+            $result = $cloudinary->upload($request->file('image')->getRealPath());
+
+            $validated['image_url'] = $result['secure_url'];
+            $validated['image_public_id'] = $result['public_id'];
         }
 
         if (isset($validated['name'])) {
-            $validated['slug'] = Str::slug($validated['name']);
+            $validated['slug'] = $this->generateUniqueSlug($validated['name'], $product->id);
         }
 
         unset($validated['image']);
         $product->update($validated);
 
         return response()->json([
-            'message' => 'Product updated.',
+            'message' => 'Product updated successfully.',
             'data'    => new ProductResource($product->load('category')),
         ]);
     }
 
     public function destroy(int $id): JsonResponse
     {
-        Product::findOrFail($id)->delete();
+        $product = Product::findOrFail($id);
+
+        if ($product->image_public_id) {
+            $cloudinary = new CloudinaryService();
+            $cloudinary->delete($product->image_public_id);
+        }
+
+        $product->delete();
+
         return response()->json(['message' => 'Product deleted.']);
     }
 }

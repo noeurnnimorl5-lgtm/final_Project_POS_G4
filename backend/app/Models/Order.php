@@ -21,6 +21,8 @@ class Order extends Model
         'amount_received',
         'change_amount',
         'status',
+        'cashier',
+        'date',
     ];
 
     protected $casts = [
@@ -29,6 +31,7 @@ class Order extends Model
         'grand_total'     => 'decimal:2',
         'amount_received' => 'decimal:2',
         'change_amount'   => 'decimal:2',
+        'date'            => 'datetime',
     ];
 
     public function user(): BelongsTo
@@ -41,7 +44,6 @@ class Order extends Model
         return $this->hasMany(OrderItem::class);
     }
 
-    // Auto generate order number
     protected static function boot(): void
     {
         parent::boot();

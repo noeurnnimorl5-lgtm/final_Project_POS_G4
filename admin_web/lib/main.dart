@@ -1,14 +1,13 @@
-import 'package:admin_web/screens/auth/login_screen.dart';
+import 'package:admin_web/core/app_router.dart';
 import 'package:flutter/material.dart';
-
-import 'screens/dashboard/dashboard_screen.dart';
-import 'screens/products/products_screen.dart';
-import 'screens/categories/categories_screen.dart';
-import 'screens/orders/orders_screen.dart';
-import 'screens/users/users_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 void main() {
-  runApp(const AdminApp());
+  runApp(
+    const ProviderScope(
+      child: AdminApp(),
+    ),
+  );
 }
 
 class AdminApp extends StatelessWidget {
@@ -23,15 +22,9 @@ class AdminApp extends StatelessWidget {
         colorSchemeSeed: const Color(0xFFFF6B00),
         useMaterial3: true,
       ),
-      initialRoute: '/login',
-      routes: {
-        '/login': (context) => const LoginScreen(),
-        '/dashboard': (context) => const DashboardScreen(),
-        '/products': (context) => const ProductsScreen(),
-        '/categories': (context) => const CategoriesScreen(),
-        '/orders': (context) => const OrdersScreen(),
-        '/users': (context) => const UsersScreen(),
-      },
+      // ✅ must point to a route that exists
+      initialRoute: AppRouter.login, // or AppRouter.app if you want to skip login
+      routes: AppRouter.routes,
     );
   }
 }

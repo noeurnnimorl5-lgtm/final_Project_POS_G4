@@ -18,7 +18,9 @@ return new class extends Migration
             $table->string('payment_method'); // cash, qr, card
             $table->decimal('amount_received', 10, 2)->default(0);
             $table->decimal('change_amount', 10, 2)->default(0);
-            $table->string('status')->default('synced'); // synced, pending
+            $table->string('status')->default('synced'); 
+            
+            
             $table->timestamps();
             $table->softDeletes();
         });
