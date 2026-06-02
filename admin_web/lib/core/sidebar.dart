@@ -47,7 +47,7 @@ class Sidebar extends StatelessWidget {
           _navItem(Icons.category_outlined, 'Categories', 2),
           _navItem(Icons.people_outline, 'Users', 3),
           _navItem(Icons.receipt_long_outlined, 'Orders', 4),
-
+          _navItem(Icons.bar_chart_outlined, 'Reports', 5),
           const Spacer(),
           const Divider(color: Colors.white12),
 

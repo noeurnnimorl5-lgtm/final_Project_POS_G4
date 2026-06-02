@@ -10,11 +10,13 @@ class DashboardNotifier extends StateNotifier<AsyncValue<Map<String, dynamic>>> 
     state = const AsyncValue.loading();
     try {
       final response = await ApiService.getDashboard();
-      state = AsyncValue.data(response['data']);
+      state = AsyncValue.data(Map<String, dynamic>.from(response['data']));
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
   }
+
+  Future<void> refresh() => loadDashboard();
 }
 
 final dashboardNotifierProvider =

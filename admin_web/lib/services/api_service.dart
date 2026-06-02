@@ -1,27 +1,25 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:html' as html; // Only for web export
 import 'package:admin_web/data/models/category.dart';
 import 'package:admin_web/data/models/order.dart';
 import 'package:admin_web/data/models/product.dart';
 import 'package:admin_web/data/models/user.dart';
 import 'package:http/http.dart' as http;
 import 'api_exception.dart';
-
 import 'auth_service.dart';
 
 class ApiService {
   static const String baseUrl = 'http://localhost:8000/api/v1';
 
-  /// -------------------------
-  /// Products
-  /// -------------------------
+  // -------------------------
+  // Products
+  // -------------------------
   static Future<List<Product>> getProducts({String? search}) async {
     final params = <String, String>{};
     if (search != null && search.isNotEmpty) params['search'] = search;
 
-    final uri = Uri.parse(
-      '$baseUrl/admin/products',
-    ).replace(queryParameters: params);
+    final uri = Uri.parse('$baseUrl/admin/products').replace(queryParameters: params);
     final response = await http.get(
       uri,
       headers: await AuthService.getHeaders(),
@@ -143,9 +141,9 @@ class ApiService {
     }
   }
 
-  /// -------------------------
-  /// Categories
-  /// -------------------------
+  // -------------------------
+  // Categories
+  // -------------------------
   static Future<List<Category>> getCategories() async {
     final response = await http.get(
       Uri.parse('$baseUrl/admin/categories'),
@@ -206,31 +204,27 @@ class ApiService {
     }
   }
 
-  /// -------------------------
-  /// Orders
-  /// -------------------------
-  /// GET /api/v1/admin/orders/{id}
-  /// Returns full order with items and cashier info
+  // -------------------------
+  // Orders
+  // -------------------------
   static Future<Order> getOrderById(int id) async {
     final response = await http.get(
       Uri.parse('$baseUrl/admin/orders/$id'),
       headers: await AuthService.getHeaders(),
     );
- 
+
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body);
       return Order.fromJson(json['data']);
     }
- 
+
     final body = jsonDecode(response.body);
     throw ApiException(
       body['message'] ?? 'Failed to load order',
       statusCode: response.statusCode,
     );
   }
- 
-// ──  getOrders  ────────────────────────────
- 
+
   static Future<List<Order>> getOrders({
     int page = 1,
     String? search,
@@ -239,30 +233,29 @@ class ApiService {
     final params = <String, String>{'page': page.toString()};
     if (search != null && search.isNotEmpty) params['search'] = search;
     if (status != null && status.isNotEmpty) params['status'] = status;
- 
-    final uri = Uri.parse('$baseUrl/admin/orders')
-        .replace(queryParameters: params);
- 
+
+    final uri = Uri.parse('$baseUrl/admin/orders').replace(queryParameters: params);
+
     final response = await http.get(
       uri,
       headers: await AuthService.getHeaders(),
     );
- 
+
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body);
       final data = json['data'] as List<dynamic>;
       return data.map((e) => Order.fromJson(e)).toList();
     }
- 
+
     throw ApiException(
       'Failed to load orders',
       statusCode: response.statusCode,
     );
   }
 
-  /// -------------------------
-  /// Users
-  /// -------------------------
+  // -------------------------
+  // Users
+  // -------------------------
   static Future<List<User>> getUsers() async {
     final response = await http.get(
       Uri.parse('$baseUrl/admin/users'),
@@ -295,9 +288,9 @@ class ApiService {
     );
   }
 
-  /// -------------------------
-  /// Dashboard
-  /// -------------------------
+  // -------------------------
+  // Dashboard
+  // -------------------------
   static Future<Map<String, dynamic>> getDashboard() async {
     final response = await http.get(
       Uri.parse('$baseUrl/admin/dashboard'),
@@ -308,4 +301,30 @@ class ApiService {
     }
     throw Exception('Failed to load dashboard');
   }
+
+  // -------------------------
+  // Reports
+  // -------------------------
+ static Future<Map<String, dynamic>> getReport() async {
+  final uri = Uri.parse('$baseUrl/admin/reports');
+  final response = await http.get(
+    uri,
+    headers: await AuthService.getHeaders(),
+  );
+  if (response.statusCode == 200) return jsonDecode(response.body);
+  throw ApiException('Failed to load report', statusCode: response.statusCode);
+}
+
+static Future<Map<String, dynamic>> getReportByDate(DateTime date) async {
+  final uri = Uri.parse(
+    '$baseUrl/admin/reports?date=${date.toIso8601String().split("T").first}',
+  );
+  final response = await http.get(
+    uri,
+    headers: await AuthService.getHeaders(),
+  );
+  if (response.statusCode == 200) return jsonDecode(response.body);
+  throw ApiException('Failed to load report', statusCode: response.statusCode);
+}
+
 }

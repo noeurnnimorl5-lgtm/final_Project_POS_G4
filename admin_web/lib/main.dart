@@ -22,7 +22,7 @@ class AdminApp extends StatelessWidget {
         colorSchemeSeed: const Color(0xFFFF6B00),
         useMaterial3: true,
       ),
-      // ✅ must point to a route that exists
+      
       initialRoute: AppRouter.login, // or AppRouter.app if you want to skip login
       routes: AppRouter.routes,
     );

@@ -1,4 +1,5 @@
 import 'package:admin_web/features/orders/orders_screen.dart';
+import 'package:admin_web/features/reports/report_screen.dart';
 import 'package:flutter/material.dart';
 import 'sidebar.dart';
 import '../features/dashboard/dashboard_screen.dart';
@@ -16,12 +17,13 @@ class AppLayout extends StatefulWidget {
 class _AppLayoutState extends State<AppLayout> {
   int _currentIndex = 0;
 
-  final _screens = const [
+  final _screens = [
     DashboardScreen(),
     ProductsScreen(),
     CategoriesScreen(),
     UsersScreen(),
     OrdersScreen(),
+     ReportsScreen(),
   ];
 
   void _onNavTap(int index) {
@@ -34,17 +36,17 @@ class _AppLayoutState extends State<AppLayout> {
 
     return Scaffold(
       drawer: isMobile
-          ? Drawer(child: Sidebar(currentIndex: _currentIndex, onNavTap: _onNavTap))
+          ? Drawer(
+              child: Sidebar(currentIndex: _currentIndex, onNavTap: _onNavTap),
+            )
           : null,
       body: SafeArea(
         child: Row(
           children: [
-            if (!isMobile) Sidebar(currentIndex: _currentIndex, onNavTap: _onNavTap),
+            if (!isMobile)
+              Sidebar(currentIndex: _currentIndex, onNavTap: _onNavTap),
             Expanded(
-              child: IndexedStack(
-                index: _currentIndex,
-                children: _screens,
-              ),
+              child: IndexedStack(index: _currentIndex, children: _screens),
             ),
           ],
         ),

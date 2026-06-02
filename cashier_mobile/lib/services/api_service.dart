@@ -20,10 +20,15 @@ class ApiService {
     };
   }
 
-  static String fixImageUrl(String url) {
-    return url.replaceAll('http://127.0.0.1:8000/', 'http://10.0.2.2:8000/');
+static String fixImageUrl(String? url) {
+  if (url == null || url.isEmpty) return '';
+
+  if (url.contains('cloudinary.com') || url.contains('res.cloudinary.com')) {
+    return url; // ✅ Cloudinary URLs pass through untouched
   }
 
+  return url.replaceAll('127.0.0.1:8000', '10.0.2.2:8000');
+}
   // ── Get Products ──────────────────────────
   static Future<List<ProductModel>> getProducts({
     String? search,
@@ -107,7 +112,7 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
-        
+
         // Handle different response formats
         if (json.containsKey('data') && json['data'] is List) {
           return List<Map<String, dynamic>>.from(json['data']);
