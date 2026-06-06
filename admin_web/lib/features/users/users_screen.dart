@@ -3,7 +3,6 @@ import '../../services/api_service.dart';
 import '../../data/models/user.dart';
 import 'widgets/user_table.dart';
 import 'widgets/add_cashier_dialog.dart';
-
 class UsersScreen extends StatefulWidget {
   const UsersScreen({super.key});
 
@@ -37,10 +36,27 @@ class _UsersScreenState extends State<UsersScreen> {
     }
   }
 
+  // In users_screen.dart — add a silent reload method
+  Future<void> _silentReload() async {
+    try {
+      final data = await ApiService.getUsers();
+      if (mounted) setState(() => users = data);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   void _showAddCashierDialog() {
     showDialog(
       context: context,
-      builder: (_) => AddCashierDialog(onAdded: loadUsers),
+      builder: (_) => AddCashierDialog(
+        // onAdded: loadUsers
+        onAdded: _silentReload, // no loading spinner, just updates the list
+      ),
     );
   }
 

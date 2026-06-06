@@ -19,4 +19,14 @@ class CategoryModel {
       color: json['color'],
     );
   }
+
+  // ── For local cache (Hive) ────────────────
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'slug': slug,
+      'color': color,
+    };
+  }
 }

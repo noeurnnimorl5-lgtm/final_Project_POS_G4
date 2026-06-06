@@ -47,8 +47,14 @@ class Order extends Model
     protected static function boot(): void
     {
         parent::boot();
+        // static::creating(function ($order) {
+        //     $order->order_number = 'ORD-' . strtoupper(uniqid());
+        // });
         static::creating(function ($order) {
-            $order->order_number = 'ORD-' . strtoupper(uniqid());
-        });
+        // ✅ Format: ORD-20240605-001 (date + daily sequence)
+        $date = now()->format('Ymd');
+        $count = static::whereDate('created_at', today())->count() + 1;
+        $order->order_number = 'ORD-' . $date . '-' . str_pad($count, 3, '0', STR_PAD_LEFT);
+    });
     }
 }

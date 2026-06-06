@@ -16,12 +16,11 @@ class PosCartButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      width: double.infinity,
-      height: 52,
-      child: ElevatedButton(
+      child: FilledButton(
         onPressed: onTap,
-        style: ElevatedButton.styleFrom(
+        style: FilledButton.styleFrom(
           backgroundColor: const Color(0xFFFF6B00),
+          minimumSize: const Size(double.infinity, 52),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -30,13 +29,22 @@ class PosCartButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              '🛒  $totalItems items',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
-              ),
+            Row(
+              children: [
+                const Text(
+                  '🛒',
+                  style: TextStyle(fontSize: 18),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '$totalItems items',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+              ],
             ),
             Text(
               '\$${totalPrice.toStringAsFixed(2)}',

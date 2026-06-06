@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/providers/products_notifier.dart';
 
-
 class ProductsScreen extends ConsumerWidget {
   const ProductsScreen({super.key});
 
@@ -218,7 +217,7 @@ class ProductsScreen extends ConsumerWidget {
                 ),
                 IconButton(
                   icon: const Icon(Icons.delete_outline, color: Colors.red),
-                  onPressed: () => ref.read(productsNotifierProvider.notifier).deleteProduct(product.id),
+                  onPressed: () => _showDeleteConfirmation(context, ref, product),
                   tooltip: 'Delete',
                 ),
               ],
@@ -227,5 +226,62 @@ class ProductsScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+// Add this method in ProductsScreen class
+Future<void> _showDeleteConfirmation(
+  BuildContext context,
+  WidgetRef ref,
+  Product product,
+) async {
+  final shouldDelete = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: const Text('Delete Product'),
+      content: Text(
+        'Are you sure you want to delete "${product.name}"?\n\nThis action cannot be undone.',
+        style: const TextStyle(fontSize: 15),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, true),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Delete'),
+        ),
+      ],
+    ),
+  );
+
+  if (shouldDelete == true) {
+    try {
+      await ref.read(productsNotifierProvider.notifier).deleteProduct(product.id);
+      
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${product.name} deleted successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }

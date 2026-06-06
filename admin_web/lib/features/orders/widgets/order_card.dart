@@ -3,7 +3,6 @@ import '../../../data/models/order.dart';
 import 'order_status_badge.dart';
 import 'payment_badge.dart';
 
-/// One row in the orders list. Tapping opens the detail sheet.
 class OrderCard extends StatelessWidget {
   final Order order;
   final VoidCallback onTap;
@@ -16,34 +15,35 @@ class OrderCard extends StatelessWidget {
       color: Colors.white,
       child: InkWell(
         onTap: onTap,
+        hoverColor: const Color(0xFFFFF8F5),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           decoration: const BoxDecoration(
             border: Border(
-              bottom: BorderSide(color: Color(0xFFF0F0F5), width: 1),
+              bottom: BorderSide(color: Color(0xFFF0F0F5)),
             ),
           ),
           child: Row(
             children: [
-              // ── Order number + cashier ──
+              // ── Order number + cashier ──────────────────
               Expanded(
                 flex: 3,
                 child: Row(
                   children: [
                     Container(
-                      width: 40,
-                      height: 40,
+                      width: 36,
+                      height: 36,
                       decoration: BoxDecoration(
                         color: const Color(0xFFFF6B00).withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Icon(
                         Icons.receipt_long_rounded,
                         color: Color(0xFFFF6B00),
-                        size: 18,
+                        size: 16,
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -51,22 +51,24 @@ class OrderCard extends StatelessWidget {
                           Text(
                             order.orderNumber,
                             style: const TextStyle(
-                              fontSize: 14,
+                              fontSize: 13,
                               fontWeight: FontWeight.w700,
                               color: Color(0xFF1A1A2E),
                             ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 2),
                           Text(
                             order.user?.name.isNotEmpty == true
                                 ? order.user!.name
-                                : (order.cashier.isNotEmpty
-                                      ? order.cashier
-                                      : 'Unknown'),
+                                : order.cashier.isNotEmpty
+                                    ? order.cashier
+                                    : 'Unknown',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 11,
                               color: Colors.grey[500],
                             ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
@@ -75,37 +77,65 @@ class OrderCard extends StatelessWidget {
                 ),
               ),
 
-              // ── Date ──
+              // ── Date ────────────────────────────────────
               Expanded(
                 flex: 2,
-                child: Text(
-                  _formatDate(order.date),
-                  style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _formatDay(order.date),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF1A1A2E),
+                      ),
+                    ),
+                    Text(
+                      _formatTime(order.date),
+                      style: TextStyle(fontSize: 11, color: Colors.grey[400]),
+                    ),
+                  ],
                 ),
               ),
 
-              // ── Items count ──
+              // ── Items count ──────────────────────────────
               Expanded(
-                child: Text(
-                  '${order.itemsCount} items', // ✅ was: order.items.length
-                  style: TextStyle(fontSize: 13, color: Colors.grey[500]),
-                  textAlign: TextAlign.center,
+                flex: 1,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF4F6FA),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '${order.itemsCount}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1A1A2E),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                 ),
               ),
 
-              // ── Payment ──
+              // ── Payment ──────────────────────────────────
               Expanded(
                 flex: 2,
                 child: PaymentBadge(method: order.paymentMethod),
               ),
 
-              // ── Grand total ──
+              // ── Grand total ──────────────────────────────
               Expanded(
                 flex: 2,
                 child: Text(
                   '\$${order.grandTotal.toStringAsFixed(2)}',
                   style: const TextStyle(
-                    fontSize: 15,
+                    fontSize: 14,
                     fontWeight: FontWeight.w800,
                     color: Color(0xFF1A1A2E),
                   ),
@@ -115,7 +145,7 @@ class OrderCard extends StatelessWidget {
 
               const SizedBox(width: 16),
 
-              // ── Status ──
+              // ── Status ───────────────────────────────────
               Expanded(
                 flex: 2,
                 child: Align(
@@ -126,10 +156,10 @@ class OrderCard extends StatelessWidget {
 
               const SizedBox(width: 8),
 
-              // ── Chevron ──
+              // ── Chevron ──────────────────────────────────
               Icon(
                 Icons.chevron_right_rounded,
-                size: 18,
+                size: 16,
                 color: Colors.grey[300],
               ),
             ],
@@ -139,27 +169,19 @@ class OrderCard extends StatelessWidget {
     );
   }
 
-  String _formatDate(DateTime? date) {
-    if (date == null) return 'Unknown';
+  // ── Jun 5, 2024 ──
+  String _formatDay(DateTime? date) {
+    if (date == null) return '—';
+    final months = ['Jan','Feb','Mar','Apr','May','Jun',
+                    'Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
 
-    final months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-
+  // ── 08:45 ──
+  String _formatTime(DateTime? date) {
+    if (date == null) return '';
     final h = date.hour.toString().padLeft(2, '0');
-    final min = date.minute.toString().padLeft(2, '0');
-
-    return '${months[date.month - 1]} ${date.day}, $h:$min';
+    final m = date.minute.toString().padLeft(2, '0');
+    return '$h:$m';
   }
 }

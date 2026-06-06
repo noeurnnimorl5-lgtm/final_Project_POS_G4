@@ -6,57 +6,69 @@ import '../../../data/models/order.dart';
 import 'order_status_badge.dart';
 
 
-class OrderDetailSheet extends ConsumerWidget {
+class OrderDetailScreen extends ConsumerWidget {
   final int orderId;
-  const OrderDetailSheet({super.key, required this.orderId});
+  final VoidCallback? onBack; // ← add this
 
-  static void show(BuildContext context, int orderId) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => OrderDetailSheet(orderId: orderId),
+  const OrderDetailScreen({super.key, required this.orderId, this.onBack});
+
+  static void push(BuildContext context, int orderId) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OrderDetailScreen(orderId: orderId),
+      ),
     );
   }
 
-  @override
+@override
   Widget build(BuildContext context, WidgetRef ref) {
     final detailAsync = ref.watch(orderDetailProvider(orderId));
 
-    return DraggableScrollableSheet(
-      initialChildSize: 0.85,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
-      builder: (_, scrollController) => Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFFF4F6FA),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    // Get order number from loaded data
+    final title = detailAsync.valueOrNull?.orderNumber ?? 'Order #$orderId';
+
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F6FA),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF1A1A2E),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => onBack != null ? onBack!() : Navigator.pop(context),
         ),
-        child: detailAsync.when(
-          loading: () => const Center(
-            child: CircularProgressIndicator(color: Color(0xFFFF6B00)),
+        title: Text(
+          title, //  shows ORD-20240605-001 once loaded
+          style: const TextStyle(
+            color: Color(0xFF1A1A2E),
+            fontWeight: FontWeight.w700,
+            fontSize: 16,
           ),
-          error: (err, _) => Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.error_outline, color: Colors.red, size: 40),
-                const SizedBox(height: 12),
-                Text(
-                  '$err',
-                  style: const TextStyle(color: Colors.red, fontSize: 13),
-                ),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: () => ref.invalidate(orderDetailProvider(orderId)),
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          ),
-          data: (order) =>
-              _DetailContent(order: order, scrollController: scrollController),
         ),
+        centerTitle: true,
+      ),
+      body: detailAsync.when(
+        loading: () => const Center(
+          child: CircularProgressIndicator(color: Color(0xFFFF6B00)),
+        ),
+        error: (err, _) => Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.red, size: 48),
+              const SizedBox(height: 16),
+              Text('$err', style: const TextStyle(color: Colors.red)),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => ref.invalidate(orderDetailProvider(orderId)),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+        data: (order) => _DetailContent(order: order),
       ),
     );
   }
@@ -66,41 +78,40 @@ class OrderDetailSheet extends ConsumerWidget {
 
 class _DetailContent extends StatelessWidget {
   final Order order;
-  final ScrollController scrollController;
 
-  const _DetailContent({required this.order, required this.scrollController});
+  const _DetailContent({required this.order});
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      controller: scrollController,
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
-      children: [
-        _buildHandle(),
-        _buildHeader(),
-        const SizedBox(height: 20),
-        _buildInfoCards(),
-        const SizedBox(height: 20),
-        _buildItemsCard(),
-        const SizedBox(height: 20),
-        _buildTotalsCard(),
-      ],
-    );
-  }
-
-  Widget _buildHandle() {
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 12),
-        width: 40,
-        height: 4,
-        decoration: BoxDecoration(
-          color: Colors.grey[300],
-          borderRadius: BorderRadius.circular(2),
-        ),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+      child: Column(
+        children: [
+          _buildHeader(),
+          const SizedBox(height: 20),
+          _buildInfoCards(),
+          const SizedBox(height: 20),
+          _buildItemsCard(),
+          const SizedBox(height: 20),
+          _buildTotalsCard(),
+        ],
       ),
     );
   }
+
+  // Widget _buildHandle() {
+  //   return Center(
+  //     child: Container(
+  //       margin: const EdgeInsets.symmetric(vertical: 12),
+  //       width: 40,
+  //       height: 4,
+  //       decoration: BoxDecoration(
+  //         color: Colors.grey[300],
+  //         borderRadius: BorderRadius.circular(2),
+  //       ),
+  //     ),
+  //   );
+  // }
 
   Widget _buildHeader() {
     return Row(

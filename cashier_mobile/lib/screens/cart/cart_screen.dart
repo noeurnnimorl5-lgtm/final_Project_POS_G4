@@ -112,7 +112,7 @@ class _CartScreenState extends State<CartScreen> {
                 // ── Cart Items List ───────────────────
                 Expanded(
                   child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                     itemCount: cartProductIds.length,
                     itemBuilder: (context, index) {
                       final id = cartProductIds[index];
@@ -132,109 +132,102 @@ class _CartScreenState extends State<CartScreen> {
 
   // ── Cart Item Card ────────────────────────
   Widget _buildCartItem(ProductModel product, int qty) {
-    return Dismissible(
-      key: Key(product.id.toString()),
-      direction: DismissDirection.endToStart,
-      onDismissed: (_) => _removeItem(product.id),
-      background: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: Colors.red,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        child: const Icon(Icons.delete, color: Colors.white),
+  return Dismissible(
+    key: Key(product.id.toString()),
+    direction: DismissDirection.endToStart,
+    onDismissed: (_) => _removeItem(product.id),
+    background: Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.red,
+        borderRadius: BorderRadius.circular(16),
       ),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.08),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Product Image
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Image.network(
-                product.imageUrl,
-                width: 65,
-                height: 65,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  width: 65,
-                  height: 65,
-                  color: Colors.grey[100],
-                  child: Icon(Icons.fastfood, color: Colors.grey[400]),
-                ),
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: 20),
+      child: const Icon(Icons.delete, color: Colors.white),
+    ),
+    child: Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade100),
+      ),
+      child: Row(
+        children: [
+          // Thumbnail
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Image.network(
+              product.imageUrl,
+              width: 58,
+              height: 58,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                width: 58,
+                height: 58,
+                color: Colors.grey[100],
+                child: Icon(Icons.fastfood, color: Colors.grey[400]),
               ),
             ),
-            const SizedBox(width: 12),
+          ),
+          const SizedBox(width: 10),
 
-            // Name + Price
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    product.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    product.priceFormatted,
-                    style: const TextStyle(
-                      color: Color(0xFFFF6B00),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Subtotal: \$${(double.parse(product.price) * qty).toStringAsFixed(2)}',
-                    style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-
-            // Quantity Stepper
-            Row(
+          // Name + price + subtotal
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _stepperBtn(Icons.remove, () {
-                  _updateQty(product.id, qty - 1);
-                }),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Text(
-                    '$qty',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
+                Text(
+                  product.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                _stepperBtn(Icons.add, () {
-                  _updateQty(product.id, qty + 1);
-                }),
+                const SizedBox(height: 3),
+                Text(
+                  product.priceFormatted,
+                  style: const TextStyle(
+                    color: Color(0xFFFF6B00),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Subtotal: \$${(double.parse(product.price) * qty).toStringAsFixed(2)}',
+                  style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                ),
               ],
             ),
-          ],
-        ),
+          ),
+
+          // Stepper
+          Row(
+            children: [
+              _stepperBtn(Icons.remove, () => _updateQty(product.id, qty - 1)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  '$qty',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              _stepperBtn(Icons.add, () => _updateQty(product.id, qty + 1)),
+            ],
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _stepperBtn(IconData icon, VoidCallback onTap) {
     return GestureDetector(

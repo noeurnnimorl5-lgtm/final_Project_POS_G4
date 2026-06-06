@@ -41,7 +41,7 @@ class ApiService {
   static Future<Product> createProduct({
     required String name,
     required String description,
-    required int categoryId,
+    required int categoryId, // parameter name can stay camelCase
     required double price,
     required int stock,
     Uint8List? imageBytes,
@@ -57,7 +57,7 @@ class ApiService {
 
     request.fields['name'] = name;
     request.fields['description'] = description;
-    request.fields['category_id'] = categoryId.toString();
+    request.fields['category_id'] = categoryId.toString(); //  snake_case for Laravel
     request.fields['price'] = price.toString();
     request.fields['stock'] = stock.toString();
     request.fields['is_active'] = '1';

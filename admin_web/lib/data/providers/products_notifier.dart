@@ -34,8 +34,10 @@ class ProductsNotifier extends StateNotifier<AsyncValue<List<Product>>> {
       );
 
       final current = state.valueOrNull ?? [];
-      state = AsyncValue.data([...current, newProduct]);
+      // state = AsyncValue.data([...current, newProduct]);
+      state = AsyncValue.data([newProduct, ...current]);
     } catch (e) {
+      debugPrint('❌ addProduct error: $e');
       throw Exception(_extractErrorMessage(e));
     }
   }
@@ -59,6 +61,7 @@ class ProductsNotifier extends StateNotifier<AsyncValue<List<Product>>> {
           if (p.id == id) updated else p,
       ]);
     } catch (e) {
+      debugPrint('❌ updateProduct error: $e');
       throw Exception(_extractErrorMessage(e));
     }
   }
@@ -75,6 +78,8 @@ class ProductsNotifier extends StateNotifier<AsyncValue<List<Product>>> {
     }
   }
 
+  
+
   String _extractErrorMessage(Object e) {
   if (e is ApiException && e.message.isNotEmpty) {
     return e.message;
@@ -86,4 +91,5 @@ class ProductsNotifier extends StateNotifier<AsyncValue<List<Product>>> {
 
 final productsNotifierProvider =
     StateNotifierProvider<ProductsNotifier, AsyncValue<List<Product>>>(
-        (ref) => ProductsNotifier());
+        (ref) => ProductsNotifier()
+    );

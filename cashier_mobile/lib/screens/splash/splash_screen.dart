@@ -81,6 +81,7 @@ class _SplashScreenState extends State<SplashScreen>
     });
   }
 
+
   // ─────────────────────────────────────────
   // Check if token exists in secure storage
   // If yes → go to POS screen (already logged in)
@@ -89,6 +90,8 @@ class _SplashScreenState extends State<SplashScreen>
   Future<void> _navigateNext() async {
     final storage = const FlutterSecureStorage();
     final token = await storage.read(key: 'auth_token');
+
+    // print('🔑 Token found: ${token != null}');
 
     if (!mounted) return;
 

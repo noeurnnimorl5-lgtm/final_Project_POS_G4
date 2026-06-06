@@ -9,44 +9,40 @@ class AuthService {
   final Dio _dio = ApiClient().dio;
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
-  Future<UserModel> login(
-    String email,
-    String password,
-  ) async {
+  Future<UserModel> login(String email, String password) async {
     try {
       final response = await _dio.post(
         ApiConstants.login,
-        data: {
-          'email': email,
-          'password': password,
-        },
+        data: {'email': email, 'password': password},
       );
 
-      final user = UserModel.fromJson(response.data);
+      // print('LOGIN RESPONSE: ${response.data}'); // ← check this output
 
-      // Cache token in RAM immediately after login
-      ApiClient.setToken(user.token);
+      final data = response.data;
 
-      await _storage.write(
-        key: 'auth_token',
-        value: user.token,
-      );
+      // ✅ Handle both flat and nested response structures
+      final token = data['token'] ?? data['access_token'] ?? data['data']?['token'];
+      final userData = data['user'] ?? data['data']?['user'] ?? data['data'] ?? data;
 
+      if (token == null) throw Exception('No token in response');
+
+      ApiClient.setToken(token);
+      await _storage.write(key: 'auth_token', value: token);
+
+      //  Save user_data so ProfileScreen can read it offline
       await _storage.write(
         key: 'user_data',
         value: jsonEncode({
-          'id': user.id,
-          'name': user.name,
-          'email': user.email,
-          'role': user.role,
+          'id':    userData['id']?.toString() ?? '',
+          'name':  userData['name']?.toString() ?? '',
+          'email': userData['email']?.toString() ?? '',
+          'role':  userData['role']?.toString() ?? 'cashier',
         }),
       );
 
-      return user;
+      return UserModel.fromJson(data);
     } on DioException catch (e) {
-      throw Exception(
-        e.response?.data['message'] ?? 'Login failed',
-      );
+      throw Exception(e.response?.data['message'] ?? 'Login failed');
     }
   }
 
@@ -78,7 +74,7 @@ class AuthService {
 
       return Map<String, dynamic>.from(jsonDecode(raw));
     } catch (e) {
-      print('getUser Error: $e');
+      // print('getUser Error: $e');
       return null;
     }
   }

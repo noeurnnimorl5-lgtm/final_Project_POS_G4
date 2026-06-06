@@ -2,12 +2,48 @@ import 'package:cashier_mobile/screens/pos/pos_screen.dart';
 import 'package:cashier_mobile/screens/splash/splash_screen.dart';
 import 'package:cashier_mobile/screens/checkout/checkout_screen.dart';
 import 'package:cashier_mobile/screens/receipt/receipt_screen.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'screens/Auth/login_screen.dart';
 import 'models/product_model.dart';
 
-void main() {
+import 'services/local_cache_service.dart';   // ← ADD
+import 'services/offline_queue_service.dart'; // ← ADD
+import 'services/api_service.dart';           // ← ADD
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await LocalCacheService.init();
+    print('✅ LocalCacheService OK');
+  } catch (e) {
+    print('❌ LocalCacheService FAILED: $e');
+  }
+
+  try {
+    await OfflineQueueService.init();
+    print('✅ OfflineQueueService OK');
+  } catch (e) {
+    print('❌ OfflineQueueService FAILED: $e');
+  }
+
+  // ✅ v7 fix — results is List<ConnectivityResult>
+  try {
+    Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
+      final online = results.isNotEmpty &&
+          results.first != ConnectivityResult.none;
+      ApiService.updateOnlineStatus(online);
+      if (online) ApiService.syncOfflineOrders();
+    });
+    print('✅ Connectivity listener OK');
+  } catch (e) {
+    print('❌ Connectivity listener FAILED: $e');
+  }
+
+  print('✅ Starting app...');
   runApp(const MyApp());
+  print('✅ runApp called');
 }
 
 class MyApp extends StatelessWidget {

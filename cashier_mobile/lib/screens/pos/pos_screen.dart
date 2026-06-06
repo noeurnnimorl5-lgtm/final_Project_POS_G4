@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cashier_mobile/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -15,6 +16,7 @@ import 'widgets/pos_product_card.dart';
 import 'widgets/pos_cart_button.dart';
 import 'widgets/pos_empty_state.dart';
 import 'widgets/pos_bottom_nav.dart';
+import 'package:collection/collection.dart';
 
 class PosScreen extends StatefulWidget {
   const PosScreen({super.key});
@@ -24,73 +26,109 @@ class PosScreen extends StatefulWidget {
 }
 
 class _PosScreenState extends State<PosScreen> {
+  // ── State ─────────────────────────────────────────────
   List<ProductModel> products = [];
   List<CategoryModel> categories = [];
   String selectedCategory = 'all';
+  String _searchQuery = '';
   bool isLoading = true;
   bool isOffline = false;
   Map<int, int> cartItems = {};
   int _currentNavIndex = 0;
+  bool _hasLoaded = false; 
 
-  // Cart discount state (lifted from CartScreen)
+  // ── Controllers ───────────────────────────────────────
+  Timer? _searchDebounce;
+  final _discountController = TextEditingController();
+  final _searchController = TextEditingController();
+
+  // ── Discount ──────────────────────────────────────────
   String _discountType = 'percent';
   double _discountValue = 0;
-  final _discountController = TextEditingController();
 
   // ── Lifecycle ─────────────────────────────────────────
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 300), () => loadData());
+    Future.delayed(
+      const Duration(milliseconds: 300), 
+      () { 
+        if (!_hasLoaded) loadData();
+      },
+    );
   }
 
   @override
   void dispose() {
     _discountController.dispose();
+    _searchController.dispose();
+    _searchDebounce?.cancel();
     super.dispose();
   }
 
   // ── Data ──────────────────────────────────────────────
-  Future<void> loadData() async {
-    setState(() => isLoading = true);
+  Future<void> loadData({bool silent = false}) async {
+    // ✅ Only show spinner on first load
+  if (!_hasLoaded && !silent) setState(() => isLoading = true);
+    // setState(() => isLoading = true);
     try {
-      final cats = await ApiService.getCategories();
-      final prods = await ApiService.getProducts(category: selectedCategory);
+      final results = await Future.wait([
+        ApiService.getCategories(),
+        ApiService.getProducts(), // fetch ALL once — filter in memory
+      ]);
+      final cats = results[0] as List<CategoryModel>;
+      final prods = results[1] as List<ProductModel>;
       setState(() {
         categories = cats;
-        products = prods;
+        products = _applyFilter(prods);
         isOffline = false;
+        isLoading = false;
+        _hasLoaded = true; // mark as loaded
       });
-      for (final product in prods) {
-        if (product.imageUrl.isNotEmpty) {
-          precacheImage(CachedNetworkImageProvider(product.imageUrl), context);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        isOffline = true;
+        isLoading = false;
+        _hasLoaded = true; //  even on error, don't reload again
+
+        //  Use cache if available so products don't disappear offline
+        final cached = ApiService.cachedProducts;
+        if (cached != null && cached.isNotEmpty) {
+          products = _applyFilter(cached);
         }
-      }
-    } catch (e) {
-      setState(() => isOffline = true);
-    } finally {
-      setState(() => isLoading = false);
+      });
     }
   }
 
-  Future<void> onSearch(String value) async {
-    setState(() => isLoading = true);
-    try {
-      final prods = await ApiService.getProducts(
-        search: value,
-        category: selectedCategory,
-      );
-      setState(() => products = prods);
-    } catch (e) {
-      setState(() => isOffline = true);
-    } finally {
-      setState(() => isLoading = false);
-    }
+  // ── Filter in memory — instant, zero API calls ────────
+  List<ProductModel> _applyFilter(List<ProductModel> all) {
+    return all.where((p) {
+      final matchCat = selectedCategory == 'all' ||
+          p.categorySlug == selectedCategory;
+      final matchSearch = _searchQuery.isEmpty ||
+          p.name.toLowerCase().contains(_searchQuery.toLowerCase());
+      return matchCat && matchSearch;
+    }).toList();
   }
 
+  // ── Category tap — instant ────────────────────────────
   void onCategoryTap(String slug) {
-    setState(() => selectedCategory = slug);
-    loadData();
+    setState(() {
+      selectedCategory = slug;
+      products = _applyFilter(ApiService.cachedProducts ?? []);
+    });
+  }
+
+  // ── Search with debounce — instant filter ─────────────
+  void onSearch(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      setState(() {
+        _searchQuery = value;
+        products = _applyFilter(ApiService.cachedProducts ?? []);
+      });
+    });
   }
 
   // ── Cart Helpers ──────────────────────────────────────
@@ -99,7 +137,9 @@ class _PosScreenState extends State<PosScreen> {
   double get cartSubtotal {
     double total = 0;
     cartItems.forEach((id, qty) {
-      final product = products.firstWhere((p) => p.id == id);
+      // Use cachedProducts so cart works even when filtered view is narrow
+      final all = ApiService.cachedProducts ?? products;
+      final product = all.firstWhere((p) => p.id == id);
       total += double.parse(product.price) * qty;
     });
     return total;
@@ -114,9 +154,8 @@ class _PosScreenState extends State<PosScreen> {
 
   double get grandTotal => cartSubtotal - discountAmount;
 
-  void addToCart(int productId) {
-    setState(() => cartItems[productId] = 1);
-  }
+  void addToCart(int productId) =>
+      setState(() => cartItems[productId] = 1);
 
   void removeFromCart(int productId) {
     setState(() {
@@ -129,9 +168,8 @@ class _PosScreenState extends State<PosScreen> {
     });
   }
 
-  void incrementCart(int productId) {
-    setState(() => cartItems[productId] = (cartItems[productId] ?? 0) + 1);
-  }
+  void incrementCart(int productId) =>
+      setState(() => cartItems[productId] = (cartItems[productId] ?? 0) + 1);
 
   void _updateCartQty(int id, int qty) {
     setState(() {
@@ -143,27 +181,25 @@ class _PosScreenState extends State<PosScreen> {
     });
   }
 
-  void _removeCartItem(int id) {
-    setState(() => cartItems.remove(id));
-  }
+  void _removeCartItem(int id) => setState(() => cartItems.remove(id));
 
   // ── Navigation ────────────────────────────────────────
-  void _onBottomNavTap(int index) {
-    setState(() => _currentNavIndex = index);
-  }
+  void _onBottomNavTap(int index) => setState(() => _currentNavIndex = index);
 
   // ── POS Body ──────────────────────────────────────────
   Widget _buildPosBody() {
-  return SafeArea(
-    child: Column(
-      children: [
-        PosHeader(
-          totalCartItems: totalCartItems,
-          onCartTap: () => setState(() => _currentNavIndex = 1),
-        ),
-
+    return SafeArea(
+      child: Column(
+        children: [
+          PosHeader(
+            totalCartItems: totalCartItems,
+            onCartTap: () => setState(() => _currentNavIndex = 1),
+          ),
           if (isOffline) const PosOfflineBanner(),
-          PosSearchBar(onChanged: onSearch),
+          PosSearchBar(
+            controller: _searchController,
+            onChanged: onSearch,
+          ),
           PosCategoryPills(
             categories: categories,
             selectedCategory: selectedCategory,
@@ -178,11 +214,16 @@ class _PosScreenState extends State<PosScreen> {
                     ),
                   )
                 : RefreshIndicator(
-                    onRefresh: loadData,
-                    color: const Color(0xFFFF6B00),
+                onRefresh: () async {
+                    ApiService.clearProductsCache(); // bust cache
+                    await loadData(silent: true);    // ✅ no spinner
+                  },                    
+                  color: const Color(0xFFFF6B00),
                     child: products.isEmpty
-                        ? const PosEmptyState()
-                        : GridView.builder(
+                          ? isOffline
+                              ? _buildOfflineEmpty() // ← offline with no cache
+                              : const PosEmptyState() // ← online but no results
+                          : GridView.builder(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 8,
@@ -219,8 +260,48 @@ class _PosScreenState extends State<PosScreen> {
     );
   }
 
+  // Add this method inside _PosScreenState:
+Widget _buildOfflineEmpty() {
+  return Center(
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.wifi_off, size: 60, color: Colors.grey[300]),
+        const SizedBox(height: 12),
+        Text(
+          'You are offline',
+          style: TextStyle(
+            color: Colors.grey[500],
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'No cached products available',
+          style: TextStyle(color: Colors.grey[400], fontSize: 13),
+        ),
+        const SizedBox(height: 20),
+        ElevatedButton.icon(
+          onPressed: loadData,
+          icon: const Icon(Icons.refresh, color: Colors.white),
+          label: const Text('Try Again',
+              style: TextStyle(color: Colors.white)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFFF6B00),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
   // ── Cart Body ─────────────────────────────────────────
   Widget _buildCartBody() {
+    // Always use full cache so cart items don't disappear when filtered
+    final allProducts = ApiService.cachedProducts ?? products;
     final cartProductIds = cartItems.keys.toList();
 
     return Scaffold(
@@ -228,7 +309,7 @@ class _PosScreenState extends State<PosScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        automaticallyImplyLeading: false, // no back arrow — it's a tab
+        automaticallyImplyLeading: false,
         title: const Text(
           'Cart',
           style: TextStyle(
@@ -252,12 +333,15 @@ class _PosScreenState extends State<PosScreen> {
               children: [
                 Expanded(
                   child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
                     itemCount: cartProductIds.length,
                     itemBuilder: (context, index) {
                       final id = cartProductIds[index];
-                      final product =
-                          products.firstWhere((p) => p.id == id);
+                      // final product =
+                      //     allProducts.firstWhere((p) => p.id == id);
+                      final product = allProducts.firstWhereOrNull((p) => p.id == id);
+                      if (product == null) return const SizedBox.shrink();
                       final qty = cartItems[id]!;
                       return _buildCartItem(product, qty);
                     },
@@ -275,7 +359,7 @@ class _PosScreenState extends State<PosScreen> {
       direction: DismissDirection.endToStart,
       onDismissed: (_) => _removeCartItem(product.id),
       background: Container(
-        margin: const EdgeInsets.only(bottom: 12),
+        margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
           color: Colors.red,
           borderRadius: BorderRadius.circular(16),
@@ -285,60 +369,60 @@ class _PosScreenState extends State<PosScreen> {
         child: const Icon(Icons.delete, color: Colors.white),
       ),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(12),
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.08),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          border: Border.all(color: Colors.grey.shade100),
         ),
         child: Row(
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: Image.network(
-                product.imageUrl,
-                width: 65,
-                height: 65,
+              child: CachedNetworkImage(
+                imageUrl: product.imageUrl,
+                width: 58,
+                height: 58,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  width: 65,
-                  height: 65,
+                placeholder: (_, __) => Container(
+                  width: 58,
+                  height: 58,
+                  color: Colors.grey[100],
+                ),
+                errorWidget: (_, __, ___) => Container(
+                  width: 58,
+                  height: 58,
                   color: Colors.grey[100],
                   child: Icon(Icons.fastfood, color: Colors.grey[400]),
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     product.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
+                        fontSize: 13, fontWeight: FontWeight.w600),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   Text(
                     product.priceFormatted,
                     style: const TextStyle(
                       color: Color(0xFFFF6B00),
                       fontWeight: FontWeight.bold,
+                      fontSize: 13,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     'Subtotal: \$${(double.parse(product.price) * qty).toStringAsFixed(2)}',
-                    style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                    style: TextStyle(color: Colors.grey[400], fontSize: 11),
                   ),
                 ],
               ),
@@ -348,14 +432,10 @@ class _PosScreenState extends State<PosScreen> {
                 _stepperBtn(Icons.remove,
                     () => _updateCartQty(product.id, qty - 1)),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Text(
-                    '$qty',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text('$qty',
+                      style: const TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.bold)),
                 ),
                 _stepperBtn(
                     Icons.add, () => _updateCartQty(product.id, qty + 1)),
@@ -398,13 +478,10 @@ class _PosScreenState extends State<PosScreen> {
       ),
       child: Column(
         children: [
-          // Discount row
           Row(
             children: [
-              const Text(
-                'Discount:',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
+              const Text('Discount:',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(width: 12),
               _discountTypeBtn('%', 'percent'),
               const SizedBox(width: 8),
@@ -418,9 +495,7 @@ class _PosScreenState extends State<PosScreen> {
                     hintText:
                         _discountType == 'percent' ? 'e.g. 10' : 'e.g. 5.00',
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
+                        horizontal: 12, vertical: 8),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                       borderSide: BorderSide(color: Colors.grey[300]!),
@@ -430,39 +505,25 @@ class _PosScreenState extends State<PosScreen> {
                       borderSide: BorderSide(color: Colors.grey[300]!),
                     ),
                   ),
-                  onChanged: (value) {
-                    setState(() {
-                      _discountValue = double.tryParse(value) ?? 0;
-                    });
-                  },
+                  onChanged: (value) => setState(
+                      () => _discountValue = double.tryParse(value) ?? 0),
                 ),
               ),
             ],
           ),
-
           const SizedBox(height: 16),
           const Divider(),
           const SizedBox(height: 8),
-
           _priceRow('Subtotal', '\$${cartSubtotal.toStringAsFixed(2)}'),
           const SizedBox(height: 6),
-          _priceRow(
-            'Discount',
-            '-\$${discountAmount.toStringAsFixed(2)}',
-            isRed: true,
-          ),
+          _priceRow('Discount', '-\$${discountAmount.toStringAsFixed(2)}',
+              isRed: true),
           const SizedBox(height: 6),
           const Divider(),
           const SizedBox(height: 6),
-          _priceRow(
-            'Grand Total',
-            '\$${grandTotal.toStringAsFixed(2)}',
-            isBold: true,
-            isOrange: true,
-          ),
-
+          _priceRow('Grand Total', '\$${grandTotal.toStringAsFixed(2)}',
+              isBold: true, isOrange: true),
           const SizedBox(height: 16),
-
           SizedBox(
             width: double.infinity,
             height: 52,
@@ -475,7 +536,7 @@ class _PosScreenState extends State<PosScreen> {
                         MaterialPageRoute(
                           builder: (_) => CheckoutScreen(
                             cartItems: cartItems,
-                            products: products,
+                            products: ApiService.cachedProducts ?? products,
                             discount: discountAmount,
                             grandTotal: grandTotal,
                           ),
@@ -485,17 +546,15 @@ class _PosScreenState extends State<PosScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFFF6B00),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
+                    borderRadius: BorderRadius.circular(16)),
                 elevation: 0,
               ),
               child: const Text(
                 'Proceed to Checkout →',
                 style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16),
               ),
             ),
           ),
@@ -529,36 +588,27 @@ class _PosScreenState extends State<PosScreen> {
     );
   }
 
-  Widget _priceRow(
-    String label,
-    String value, {
-    bool isRed = false,
-    bool isBold = false,
-    bool isOrange = false,
-  }) {
+  Widget _priceRow(String label, String value,
+      {bool isRed = false, bool isBold = false, bool isOrange = false}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.grey[600],
-            fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-            fontSize: isBold ? 16 : 14,
-          ),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            color: isRed
-                ? Colors.red
-                : isOrange
-                    ? const Color(0xFFFF6B00)
-                    : Colors.black,
-            fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-            fontSize: isBold ? 16 : 14,
-          ),
-        ),
+        Text(label,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+              fontSize: isBold ? 16 : 14,
+            )),
+        Text(value,
+            style: TextStyle(
+              color: isRed
+                  ? Colors.red
+                  : isOrange
+                      ? const Color(0xFFFF6B00)
+                      : Colors.black,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+              fontSize: isBold ? 16 : 14,
+            )),
       ],
     );
   }
@@ -570,32 +620,24 @@ class _PosScreenState extends State<PosScreen> {
         children: [
           Icon(Icons.shopping_cart_outlined, size: 80, color: Colors.grey[300]),
           const SizedBox(height: 16),
-          Text(
-            'Your cart is empty',
-            style: TextStyle(
-              color: Colors.grey[400],
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
+          Text('Your cart is empty',
+              style: TextStyle(
+                  color: Colors.grey[400],
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500)),
           const SizedBox(height: 8),
-          Text(
-            'Add products from the menu',
-            style: TextStyle(color: Colors.grey[400], fontSize: 14),
-          ),
+          Text('Add products from the menu',
+              style: TextStyle(color: Colors.grey[400], fontSize: 14)),
           const SizedBox(height: 24),
           ElevatedButton(
             onPressed: () => setState(() => _currentNavIndex = 0),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFFF6B00),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+                  borderRadius: BorderRadius.circular(12)),
             ),
-            child: const Text(
-              'Browse Products',
-              style: TextStyle(color: Colors.white),
-            ),
+            child: const Text('Browse Products',
+                style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -610,10 +652,10 @@ class _PosScreenState extends State<PosScreen> {
       body: IndexedStack(
         index: _currentNavIndex,
         children: [
-          _buildPosBody(),            // index 0 — Home
-          _buildCartBody(),           // index 1 — Cart ✅
-          const OrderHistoryScreen(), // index 2 — Orders
-          const ProfileScreen(),      // index 3 — Profile
+          _buildPosBody(),
+          _buildCartBody(),
+          const OrderHistoryScreen(),
+          const ProfileScreen(),
         ],
       ),
       bottomNavigationBar: PosBottomNav(

@@ -76,9 +76,9 @@ class Order {
                         ? _parseInt(json['items_count'])
                         : itemsList.length,
       cashier:        (json['cashier'] as String?) ?? '',
-      date:           json['date'] != null
-                        ? DateTime.tryParse(json['date'] as String)
-                        : null,
+      date:           json['date'] != null 
+                      ? DateTime.tryParse(json['date'])  // ✅ tryParse not parse
+                      : null,
     );
   }
 

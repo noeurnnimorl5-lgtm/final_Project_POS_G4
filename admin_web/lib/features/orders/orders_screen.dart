@@ -13,6 +13,7 @@ class OrdersScreen extends ConsumerStatefulWidget {
 
 class _OrdersScreenState extends ConsumerState<OrdersScreen> {
   final _searchController = TextEditingController();
+  int? _selectedOrderId; // ← ADD THIS
 
   static const _statusTabs = [
     _Tab(label: 'All',       value: null),
@@ -29,9 +30,17 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final filter       = ref.watch(orderFilterProvider);
-    final ordersAsync  = ref.watch(ordersProvider);
-    final notifier     = ref.read(orderFilterProvider.notifier);
+    final filter      = ref.watch(orderFilterProvider);
+    final ordersAsync = ref.watch(ordersProvider);
+    final notifier    = ref.read(orderFilterProvider.notifier);
+
+    // ✅ Show detail panel instead of list when order is selected
+    if (_selectedOrderId != null) {
+      return OrderDetailScreen(
+        orderId: _selectedOrderId!,
+        onBack: () => setState(() => _selectedOrderId = null),
+      );
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
@@ -52,19 +61,21 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                 onRetry: () => ref.invalidate(ordersProvider),
               ),
               data: (orders) {
-                if (orders.isEmpty) {
-                  return const _EmptyView();
-                }
+                if (orders.isEmpty) return const _EmptyView();
                 return RefreshIndicator(
                   color: const Color(0xFFFF6B00),
-                  onRefresh: () async => ref.invalidate(ordersProvider),
+                  onRefresh: () async {
+                    ref.invalidate(ordersProvider);
+                    // Wait for the provider to rebuild
+                    await ref.read(ordersProvider.future);
+                  },                  
                   child: ListView.builder(
                     itemCount: orders.length,
                     itemBuilder: (ctx, i) => OrderCard(
                       order: orders[i],
-                      onTap: () => OrderDetailSheet.show(
-                        context,
-                        orders[i].id,
+                      // ✅ Set selected ID instead of Navigator.push
+                      onTap: () => setState(
+                        () => _selectedOrderId = orders[i].id,
                       ),
                     ),
                   ),
@@ -145,7 +156,10 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
             icon: Icons.refresh_rounded,
             label: 'Refresh',
             filled: true,
-            onTap: () => ref.invalidate(ordersProvider),
+            onTap: () {
+              ref.invalidate(ordersProvider);      // ✅ invalidate
+              ref.invalidate(orderFilterProvider); // ✅ also reset filter cache
+            },
           ),
         ],
       ),

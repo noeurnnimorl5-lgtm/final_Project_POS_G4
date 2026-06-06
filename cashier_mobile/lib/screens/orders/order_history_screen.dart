@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import 'widgets/order_card.dart';
 import 'widgets/empty_order_state.dart';
-import 'widgets/order_detail_sheet.dart';
+import 'widgets/order_detail_screen.dart';
 
 class OrderHistoryScreen extends StatefulWidget {
   const OrderHistoryScreen({super.key});
@@ -13,20 +13,25 @@ class OrderHistoryScreen extends StatefulWidget {
 
 class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
   bool isLoading = true;
+  bool _hasLoaded = false; // track if already loaded
   List<Map<String, dynamic>> orders = [];
 
   @override
   void initState() {
     super.initState();
-    loadOrders();
+    if (!_hasLoaded) loadOrders(); //  only load once
   }
 
   Future<void> loadOrders() async {
+    //  Only show spinner on first load, not on tab switch
+    if (!_hasLoaded) setState(() => isLoading = true);
+
     try {
       final data = await ApiService.getOrders();
       setState(() {
         orders = data;
         isLoading = false;
+        _hasLoaded = true; //  mark as loaded
       });
     } catch (e) {
       setState(() => isLoading = false);
@@ -38,6 +43,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
     }
   }
 
+  // Manual refresh still works — shows spinner intentionally
   Future<void> refreshOrders() async {
     setState(() => isLoading = true);
     await loadOrders();
@@ -50,7 +56,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        automaticallyImplyLeading: false, // ✅ no back arrow since it's a tab
+        automaticallyImplyLeading: false, //  no back arrow since it's a tab
         title: const Text(
           'My Orders',
           style: TextStyle(
@@ -83,7 +89,13 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                       final order = orders[index];
                       return OrderCard(
                         order: order,
-                        onTap: () => showOrderDetailSheet(context, order),
+                        // onTap: () => showOrderDetailSheet(context, order),
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => OrderDetailScreen(order: order),
+                          ),
+                        ),
                       );
                     },
                   ),

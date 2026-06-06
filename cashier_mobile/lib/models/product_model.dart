@@ -28,15 +28,12 @@ class ProductModel {
   });
 
   factory ProductModel.fromJson(Map<String, dynamic> json) {
-    // Try all common field names Laravel might return for the image
     final rawImage = json['image_url'] ??
         json['image'] ??
         json['image_path'] ??
         json['photo'] ??
         json['thumbnail'] ??
         '';
-
-    print('🖼️  Raw image value: $rawImage');
 
     return ProductModel(
       id: json['id'],
@@ -51,5 +48,23 @@ class ProductModel {
       categoryName: json['category']?['name'] ?? '',
       categorySlug: json['category']?['slug'] ?? '',
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'description': description,
+      'price': price,
+      'price_formatted': priceFormatted,
+      'image_url': imageUrl,
+      'rating': rating,
+      'stock': stock,
+      'stock_status': stockStatus,
+      'category': {
+        'name': categoryName,
+        'slug': categorySlug,
+      },
+    };
   }
 }
